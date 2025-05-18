@@ -1,27 +1,29 @@
 import streamlit as st
-import openai
+import pandas as pd
 import re
+import os
 from datetime import datetime
 import base64
+from openai import OpenAI
 
-# Streamlit page settings
+# Page config
 st.set_page_config(page_title="VeriIntel 🧠", layout="wide")
 st.sidebar.title("🧭 VeriIntel Tools")
 tool = st.sidebar.radio("Select a tool:", ["📡 IP Analyzer", "📧 Email Analyzer", "📊 Dashboard"])
 
-# Optional OpenAI Key
+# API Key
 openai_api_key = st.sidebar.text_input("🔑 OpenAI API Key", type="password")
 
-# GPT Analyzer
+# GPT Integration (New SDK v1.x)
 def analyze_with_gpt(prompt):
     if not openai_api_key:
         return "⚠️ Please provide OpenAI API Key."
     try:
-        response = openai.ChatCompletion.create(
+        client = OpenAI(api_key=openai_api_key)
+        response = client.chat.completions.create(
             model="gpt-4",
-            api_key=openai_api_key,
             messages=[
-                {"role": "system", "content": "You are a cybersecurity email threat analyst."},
+                {"role": "system", "content": "You are a cybersecurity expert."},
                 {"role": "user", "content": prompt}
             ]
         )
@@ -58,9 +60,25 @@ def generate_download_link(text, filename="veriintel_report.txt"):
     b64 = base64.b64encode(text.encode()).decode()
     return f'<a href="data:file/txt;base64,{b64}" download="{filename}">📥 Download Report</a>'
 
-# Main App Views
+# Placeholder for future Google Sheets logging
+def log_submission(input_type, raw_input, verdict, ai_analysis, log_file="veriintel_logs.csv"):
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "type": input_type,
+        "input": raw_input[:500],
+        "verdict": verdict,
+        "analysis": ai_analysis[:1000]
+    }
+    df = pd.DataFrame([entry])
+    if os.path.exists(log_file):
+        df.to_csv(log_file, mode='a', header=False, index=False)
+    else:
+        df.to_csv(log_file, index=False)
+
+# Main
 st.title("🔍 VeriIntel - AI-Powered Threat Analysis")
 
+# IP Analyzer
 if tool == "📡 IP Analyzer":
     ip_input = st.text_input("Enter IP Address:")
     if st.button("Analyze IP"):
@@ -69,9 +87,14 @@ if tool == "📡 IP Analyzer":
             result = analyze_with_gpt(ai_prompt)
             st.subheader("🧠 AI Assessment")
             st.write(result)
+
+            verdict = verdict_badge(result)
+            st.subheader(verdict)
+            log_submission("ip", ip_input, verdict, result)
         else:
             st.warning("Please enter a valid IP address.")
 
+# Email Analyzer
 elif tool == "📧 Email Analyzer":
     st.subheader("📧 Email Header Analyzer")
 
@@ -111,15 +134,19 @@ You are a cybersecurity analyst. Analyze the following email header for spoofing
             verdict = verdict_badge(analysis)
             st.subheader(verdict)
 
+            log_submission("email_header", header_text, verdict, analysis)
+
             with st.expander("📥 Export Result"):
                 download_link = generate_download_link(f"{header_text}\n\n---\n\nAI Analysis:\n{analysis}", filename="email_analysis_report.txt")
                 st.markdown(download_link, unsafe_allow_html=True)
         else:
             st.warning("Please upload or paste an email header.")
 
+# Dashboard placeholder
 elif tool == "📊 Dashboard":
     st.markdown("🚧 Coming Soon: Visual dashboards of submissions, trends, and verdict stats.")
 
 # Footer
 st.markdown("---")
 st.markdown("Built by VeriIntel · v0.2")
+
